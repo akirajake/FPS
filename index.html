@@ -9,18 +9,25 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { margin: 0; overflow: hidden; background-color: #111; color: white; user-select: none; -webkit-user-select: none; }
+    body { margin: 0; overflow: hidden; background-color: #050000; color: white; user-select: none; -webkit-user-select: none; font-family: 'Courier New', Courier, monospace; }
     #game-canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
     .pointer-auto { pointer-events: auto; }
+    
     /* Crosshair */
-    .crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); pointer-events: none; }
-    .crosshair::before, .crosshair::after { content: ''; position: absolute; background: white; }
+    .crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference; }
+    .crosshair::before, .crosshair::after { content: ''; position: absolute; background: #00ffcc; box-shadow: 0 0 5px #00ffcc; }
     .crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
     .crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
-    /* Loading Spinner */
-    .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+    
+    /* Damage Overlay */
+    #damage-overlay { position: absolute; inset: 0; background: radial-gradient(circle, transparent 30%, rgba(255, 0, 0, 0.7) 100%); opacity: 0; pointer-events: none; transition: opacity 0.1s ease-out; z-index: 5; }
+    
+    /* UI Animations */
+    .spinner { border: 4px solid rgba(255,0,0,0.3); border-top: 4px solid #ff0000; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .glitch-text { animation: glitch 2s linear infinite; }
+    @keyframes glitch { 2%, 64% { transform: translate(2px,0) skew(0deg); } 4%, 60% { transform: translate(-2px,0) skew(0deg); } 62% { transform: translate(0,0) skew(5deg); } }
   </style>
 </head>
 <body>
@@ -32,110 +39,109 @@
   <div id="ui-layer" class="flex items-center justify-center">
 
     <!-- 1. Login Screen -->
-    <div id="screen-login" class="pointer-auto bg-gray-900/90 p-8 rounded-xl shadow-2xl text-center max-w-sm w-full backdrop-blur-sm border border-gray-700">
-      <h1 class="text-3xl font-bold mb-6 text-white tracking-wider">WEB P2P FPS</h1>
-      <p class="text-gray-400 mb-8 text-sm">Googleアカウントでログインして開始</p>
-      <button id="btn-login" class="w-full bg-white text-gray-900 font-bold py-3 px-4 rounded hover:bg-gray-200 transition flex items-center justify-center gap-2">
-        <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z"/></svg>
-        Googleでログイン
+    <div id="screen-login" class="pointer-auto bg-black/90 p-8 rounded-xl shadow-[0_0_20px_rgba(255,0,0,0.4)] text-center max-w-sm w-full backdrop-blur-md border border-red-900">
+      <h1 class="text-4xl font-black mb-6 text-red-600 tracking-widest glitch-text">DEATH MATCH</h1>
+      <p class="text-gray-400 mb-8 text-sm">Googleアカウントで認証しろ</p>
+      <button id="btn-login" class="w-full bg-red-700 text-white font-bold py-3 px-4 rounded hover:bg-red-600 hover:shadow-[0_0_15px_rgba(255,0,0,0.8)] transition flex items-center justify-center gap-2">
+        Google Login
       </button>
     </div>
 
     <!-- 2. Lobby Screen -->
-    <div id="screen-lobby" class="hidden pointer-auto bg-gray-900/90 p-8 rounded-xl shadow-2xl text-center max-w-md w-full backdrop-blur-sm border border-gray-700">
-      <h2 class="text-2xl font-bold mb-2">ロビー</h2>
+    <div id="screen-lobby" class="hidden pointer-auto bg-black/90 p-8 rounded-xl shadow-[0_0_20px_rgba(255,0,0,0.4)] text-center max-w-md w-full backdrop-blur-md border border-red-900">
+      <h2 class="text-2xl font-bold mb-2 text-red-500 uppercase">Arena Lobby</h2>
       <p id="user-name" class="text-gray-400 mb-6 font-medium">Player</p>
       
       <div class="space-y-4">
-        <button id="btn-create-room" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition">
-          部屋を作る (Host)
+        <button id="btn-create-room" class="w-full bg-red-900 hover:bg-red-800 text-white font-bold py-3 px-4 rounded border border-red-700 transition shadow-[0_0_10px_rgba(255,0,0,0.2)]">
+          ホストになる (Host)
         </button>
         <div class="relative flex items-center py-2">
-          <div class="flex-grow border-t border-gray-600"></div>
-          <span class="flex-shrink-0 mx-4 text-gray-500 text-sm">または</span>
-          <div class="flex-grow border-t border-gray-600"></div>
+          <div class="flex-grow border-t border-red-900"></div>
+          <span class="flex-shrink-0 mx-4 text-gray-600 text-sm">OR</span>
+          <div class="flex-grow border-t border-red-900"></div>
         </div>
-        <button id="btn-scan-qr" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded transition flex items-center justify-center gap-2">
-          QRを読み込む (Guest)
+        <button id="btn-scan-qr" class="w-full bg-orange-900 hover:bg-orange-800 text-white font-bold py-3 px-4 rounded border border-orange-700 transition">
+          QRスキャン (Guest)
         </button>
         <div class="flex gap-2">
-          <input type="text" id="input-room-id" placeholder="ルームIDを入力" class="flex-1 bg-gray-800 text-white px-3 py-2 rounded border border-gray-700 focus:outline-none focus:border-blue-500">
-          <button id="btn-join-room" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition">参加</button>
+          <input type="text" id="input-room-id" placeholder="ルームID" class="flex-1 bg-black text-red-500 px-3 py-2 rounded border border-red-900 focus:outline-none focus:border-red-500 focus:shadow-[0_0_10px_rgba(255,0,0,0.5)]">
+          <button id="btn-join-room" class="bg-red-800 hover:bg-red-700 px-4 py-2 rounded transition">参加</button>
         </div>
       </div>
     </div>
 
     <!-- 3. Waiting / Host Screen -->
-    <div id="screen-waiting" class="hidden pointer-auto bg-gray-900/90 p-8 rounded-xl shadow-2xl text-center max-w-sm w-full backdrop-blur-sm border border-gray-700">
-      <h2 class="text-xl font-bold mb-4 text-blue-400">対戦相手を待っています...</h2>
-      <div id="qrcode-container" class="bg-white p-4 rounded-lg inline-block mb-4"></div>
-      <p class="text-sm text-gray-300 mb-1">ルームID: <span id="display-room-id" class="font-mono font-bold text-white select-all">---</span></p>
-      <p class="text-xs text-gray-500 mb-4">スマホでQRを読み込むか、IDを共有してください</p>
-      <div class="spinner mb-4"></div>
-      <button id="btn-cancel-room" class="text-sm text-red-400 hover:text-red-300 underline">キャンセル</button>
+    <div id="screen-waiting" class="hidden pointer-auto bg-black/90 p-8 rounded-xl shadow-[0_0_20px_rgba(255,0,0,0.4)] text-center max-w-sm w-full backdrop-blur-md border border-red-900">
+      <h2 class="text-xl font-bold mb-4 text-red-500 animate-pulse">標的を待機中...</h2>
+      <div id="qrcode-container" class="bg-white p-4 rounded-lg inline-block mb-4 shadow-[0_0_15px_rgba(255,255,255,0.2)]"></div>
+      <p class="text-sm text-gray-400 mb-1">ROOM ID: <span id="display-room-id" class="font-mono font-bold text-red-400 select-all">---</span></p>
+      <div class="spinner mb-4 mt-4"></div>
+      <button id="btn-cancel-room" class="text-sm text-gray-500 hover:text-gray-300 underline">アボート</button>
     </div>
 
     <!-- 4. QR Scanner Screen -->
-    <div id="screen-scanner" class="hidden pointer-auto bg-black p-4 rounded-xl shadow-2xl max-w-md w-full relative">
-      <h2 class="text-lg font-bold mb-2 text-center">QRコードをスキャン</h2>
-      <div id="reader" class="w-full bg-gray-800 rounded overflow-hidden"></div>
-      <button id="btn-close-scanner" class="absolute top-4 right-4 bg-red-600 p-2 rounded-full text-white">✕</button>
+    <div id="screen-scanner" class="hidden pointer-auto bg-black p-4 rounded-xl shadow-[0_0_20px_rgba(255,0,0,0.4)] max-w-md w-full relative border border-red-900">
+      <h2 class="text-lg font-bold mb-2 text-center text-red-500">TARGET QR SCAN</h2>
+      <div id="reader" class="w-full bg-gray-900 rounded overflow-hidden border border-red-900"></div>
+      <button id="btn-close-scanner" class="absolute top-4 right-4 bg-red-900 p-2 rounded-full text-white hover:bg-red-700">✕</button>
     </div>
 
     <!-- 5. Connecting Screen -->
-    <div id="screen-connecting" class="hidden pointer-auto bg-gray-900/90 p-8 rounded-xl shadow-2xl text-center">
-      <h2 class="text-2xl font-bold mb-4 text-yellow-400">P2P 接続中...</h2>
+    <div id="screen-connecting" class="hidden pointer-auto bg-black/90 p-8 rounded-xl shadow-[0_0_20px_rgba(255,0,0,0.4)] text-center border border-red-900">
+      <h2 class="text-2xl font-bold mb-4 text-orange-500 glitch-text">P2P LINK ESTABLISHING...</h2>
       <div class="spinner"></div>
     </div>
 
     <!-- 6. Game HUD -->
     <div id="screen-game" class="hidden absolute inset-0 w-full h-full pointer-events-none">
+      <div id="damage-overlay"></div>
       <div class="crosshair"></div>
       
       <!-- Status Bars -->
-      <div class="absolute top-4 left-4 right-4 flex justify-between items-start">
-        <div class="bg-gray-900/80 p-3 rounded border border-gray-700">
-          <p class="text-xs text-gray-400 mb-1">YOU</p>
-          <div class="w-48 h-4 bg-gray-700 rounded-full overflow-hidden">
-            <div id="my-hp-bar" class="h-full bg-green-500 transition-all duration-200" style="width: 100%;"></div>
+      <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+        <div class="bg-black/60 p-3 rounded border border-red-900 backdrop-blur-sm">
+          <p class="text-xs text-red-500 mb-1 font-bold">ARMOR [YOU]</p>
+          <div class="w-48 h-4 bg-gray-900 rounded overflow-hidden border border-gray-700">
+            <div id="my-hp-bar" class="h-full bg-cyan-500 shadow-[0_0_10px_cyan] transition-all duration-200" style="width: 100%;"></div>
           </div>
         </div>
-        <div class="bg-gray-900/80 p-3 rounded border border-gray-700 text-right">
-          <p class="text-xs text-gray-400 mb-1">ENEMY</p>
-          <div class="w-48 h-4 bg-gray-700 rounded-full overflow-hidden flex justify-end">
-            <div id="enemy-hp-bar" class="h-full bg-red-500 transition-all duration-200" style="width: 100%;"></div>
+        <div class="bg-black/60 p-3 rounded border border-red-900 backdrop-blur-sm text-right">
+          <p class="text-xs text-red-500 mb-1 font-bold">TARGET [ENEMY]</p>
+          <div class="w-48 h-4 bg-gray-900 rounded overflow-hidden border border-gray-700 flex justify-end">
+            <div id="enemy-hp-bar" class="h-full bg-red-600 shadow-[0_0_10px_red] transition-all duration-200" style="width: 100%;"></div>
           </div>
         </div>
       </div>
 
       <!-- Start Message -->
-      <div id="game-msg" class="absolute top-1/4 left-1/2 -translate-x-1/2 text-4xl font-black text-yellow-400 tracking-widest drop-shadow-md transition-opacity duration-1000 opacity-0">FIGHT!</div>
+      <div id="game-msg" class="absolute top-1/4 left-1/2 -translate-x-1/2 text-6xl font-black text-red-600 tracking-widest drop-shadow-[0_0_20px_rgba(255,0,0,1)] transition-opacity duration-1000 opacity-0 z-10 glitch-text">KILL OR BE KILLED</div>
 
       <!-- PC Helper -->
-      <div id="pc-helper" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 px-4 py-2 rounded text-xs text-gray-300">
-        画面をクリックして操作開始 (W,A,S,D: 移動 / Mouse: 視点 / Click: 射撃)
+      <div id="pc-helper" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded border border-red-900 text-xs text-red-400 z-10 uppercase tracking-widest">
+        Click to lock aim / W,A,S,D: Move / Mouse: Look / L-Click: Fire
       </div>
 
       <!-- Mobile Controls -->
-      <div id="mobile-controls" class="hidden absolute inset-0 w-full h-full">
+      <div id="mobile-controls" class="hidden absolute inset-0 w-full h-full z-10">
         <!-- Joystick Area (Left) -->
-        <div id="zone-joystick" class="absolute bottom-10 left-10 w-32 h-32 bg-white/10 rounded-full pointer-auto touch-none border-2 border-white/20">
-          <div id="joystick-knob" class="absolute top-1/2 left-1/2 w-12 h-12 bg-white/50 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+        <div id="zone-joystick" class="absolute bottom-10 left-10 w-36 h-36 bg-red-900/10 rounded-full pointer-auto touch-none border-2 border-red-600/30">
+          <div id="joystick-knob" class="absolute top-1/2 left-1/2 w-14 h-14 bg-red-600/50 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-[0_0_15px_rgba(255,0,0,0.5)]"></div>
         </div>
         <!-- Look Area (Right Half) -->
         <div id="zone-look" class="absolute top-0 right-0 w-1/2 h-full pointer-auto touch-none"></div>
         <!-- Shoot Button -->
-        <div id="btn-shoot" class="absolute bottom-10 right-10 w-20 h-20 bg-red-500/50 border-2 border-red-400 rounded-full pointer-auto flex items-center justify-center text-white font-bold text-xl active:bg-red-500/80 active:scale-95 transition touch-none">
-          撃
+        <div id="btn-shoot" class="absolute bottom-12 right-12 w-24 h-24 bg-red-600/40 border-2 border-red-500 rounded-full pointer-auto flex items-center justify-center text-white font-black text-2xl active:bg-red-500/80 active:scale-90 transition touch-none shadow-[0_0_20px_rgba(255,0,0,0.6)] backdrop-blur-sm">
+          FIRE
         </div>
       </div>
     </div>
 
     <!-- 7. Result Screen -->
-    <div id="screen-result" class="hidden pointer-auto bg-gray-900/90 p-10 rounded-xl shadow-2xl text-center backdrop-blur-md border border-gray-700">
-      <h2 id="result-title" class="text-5xl font-black mb-4 uppercase"></h2>
-      <p id="result-desc" class="text-gray-300 mb-8"></p>
-      <button id="btn-back-lobby" class="bg-white text-black font-bold py-3 px-8 rounded hover:bg-gray-200 transition">ロビーに戻る</button>
+    <div id="screen-result" class="hidden pointer-auto bg-black/90 p-10 rounded-xl shadow-[0_0_30px_rgba(255,0,0,0.6)] text-center backdrop-blur-md border border-red-900">
+      <h2 id="result-title" class="text-6xl font-black mb-4 uppercase tracking-widest"></h2>
+      <p id="result-desc" class="text-gray-400 mb-8 font-mono"></p>
+      <button id="btn-back-lobby" class="bg-red-800 text-white font-bold py-3 px-8 rounded hover:bg-red-600 border border-red-500 transition shadow-[0_0_15px_rgba(255,0,0,0.5)]">RETURN TO LOBBY</button>
     </div>
 
   </div>
@@ -146,7 +152,6 @@
     import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
     // --- Firebase Configuration ---
-    // ユーザー提供の設定を利用
     const firebaseConfig = {
       apiKey: "AIzaSyDZMYlpvok4QqOfVqPtDFxcp6oi4bGm-Fw",
       authDomain: "p2p-fps.firebaseapp.com",
@@ -168,7 +173,7 @@
     let currentRoomId = null;
     let html5QrCode = null;
     let isHost = false;
-    let gameState = 'LOGIN'; // LOGIN, LOBBY, WAITING, CONNECTING, GAME, RESULT
+    let gameState = 'LOGIN';
     
     // Game State
     let myHP = 100;
@@ -176,12 +181,7 @@
     let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     // WebRTC Configuration
-    const rtcConfig = {
-      iceServers: [
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ]
-    };
+    const rtcConfig = { iceServers: [ { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' } ] };
 
     // --- UI Elements ---
     const screens = {
@@ -199,9 +199,8 @@
       if(screens[name]) screens[name].classList.remove('hidden');
       gameState = name;
       
-      // Handle Three.js input based on state
       if (name === 'game') {
-        if (!isMobile) screens.game.classList.add('pointer-auto'); // Allow click for PointerLock
+        if (!isMobile) screens.game.classList.add('pointer-auto');
         if (isMobile) document.getElementById('mobile-controls').classList.remove('hidden');
         else document.getElementById('pc-helper').classList.remove('hidden');
         resetGameStats();
@@ -218,26 +217,16 @@
     // --- Authentication ---
     document.getElementById('btn-login').addEventListener('click', () => {
       const provider = new GoogleAuthProvider();
-      signInWithPopup(auth, provider).catch(error => {
-        console.error("Login error:", error);
-        alert("ログインに失敗しました。詳細: " + error.message);
-      });
+      signInWithPopup(auth, provider).catch(error => { console.error("Login error:", error); alert("ログイン失敗: " + error.message); });
     });
 
     onAuthStateChanged(auth, (user) => {
       if (user) {
         currentUser = user;
-        document.getElementById('user-name').innerText = user.displayName || user.email;
-        
-        // URLパラメータからの直接参加チェック
+        document.getElementById('user-name').innerText = `AGENT: ${user.displayName || user.email}`;
         const urlParams = new URLSearchParams(window.location.search);
         const roomToJoin = urlParams.get('room');
-        
-        if (roomToJoin) {
-          joinRoom(roomToJoin);
-        } else {
-          showScreen('lobby');
-        }
+        if (roomToJoin) joinRoom(roomToJoin); else showScreen('lobby');
       } else {
         showScreen('login');
       }
@@ -248,59 +237,39 @@
       showScreen('waiting');
       isHost = true;
       setupWebRTC();
-
       dataChannel = peerConnection.createDataChannel('gameData');
       setupDataChannel(dataChannel);
 
       const roomRef = doc(collection(db, "rooms"));
       currentRoomId = roomRef.id;
       
-      // Update UI
       document.getElementById('display-room-id').innerText = currentRoomId;
       const joinUrl = `${window.location.origin}${window.location.pathname}?room=${currentRoomId}`;
       document.getElementById('qrcode-container').innerHTML = '';
-      new QRCode(document.getElementById('qrcode-container'), {
-        text: joinUrl, width: 150, height: 150
-      });
+      new QRCode(document.getElementById('qrcode-container'), { text: joinUrl, width: 150, height: 150, colorDark: "#880000" });
 
-      // ICE Candidates collection for Host
       const callerCandidatesCollection = collection(roomRef, 'callerCandidates');
       peerConnection.addEventListener('icecandidate', event => {
-        if (!event.candidate) return;
-        addDoc(callerCandidatesCollection, event.candidate.toJSON());
+        if (event.candidate) addDoc(callerCandidatesCollection, event.candidate.toJSON());
       });
 
-      // Create Offer
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
+      await setDoc(roomRef, { offer: { type: offer.type, sdp: offer.sdp }, createdAt: new Date() });
 
-      const roomWithOffer = {
-        offer: { type: offer.type, sdp: offer.sdp },
-        createdAt: new Date()
-      };
-      await setDoc(roomRef, roomWithOffer);
-
-      // Listen for Answer
       const unsub = onSnapshot(roomRef, async snapshot => {
         const data = snapshot.data();
         if (!peerConnection.currentRemoteDescription && data && data.answer) {
-          const rtcSessionDescription = new RTCSessionDescription(data.answer);
-          await peerConnection.setRemoteDescription(rtcSessionDescription);
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
       });
 
-      // Listen for remote ICE candidates
       const calleeCandidatesCollection = collection(roomRef, 'calleeCandidates');
       onSnapshot(calleeCandidatesCollection, snapshot => {
         snapshot.docChanges().forEach(async change => {
-          if (change.type === 'added') {
-            let data = change.doc.data();
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data));
-          }
+          if (change.type === 'added') await peerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
         });
       });
-      
-      // Save unsubscribe function to clean up later if cancelled
       peerConnection._unsubRoom = unsub;
     }
 
@@ -313,43 +282,30 @@
       const roomRef = doc(db, "rooms", roomId);
       const roomSnapshot = await getDoc(roomRef);
 
-      if (!roomSnapshot.exists()) {
-        alert("ルームが見つかりません。");
-        showScreen('lobby');
-        return;
-      }
+      if (!roomSnapshot.exists()) { alert("ルームが見つかりません。"); showScreen('lobby'); return; }
 
       setupWebRTC();
 
-      // Listen for DataChannel
       peerConnection.addEventListener('datachannel', event => {
         dataChannel = event.channel;
         setupDataChannel(dataChannel);
       });
 
-      // ICE Candidates collection for Guest
       const calleeCandidatesCollection = collection(roomRef, 'calleeCandidates');
       peerConnection.addEventListener('icecandidate', event => {
-        if (!event.candidate) return;
-        addDoc(calleeCandidatesCollection, event.candidate.toJSON());
+        if (event.candidate) addDoc(calleeCandidatesCollection, event.candidate.toJSON());
       });
 
       const offer = roomSnapshot.data().offer;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
+      await setDoc(roomRef, { answer: { type: answer.type, sdp: answer.sdp } }, { merge: true });
 
-      const roomWithAnswer = { answer: { type: answer.type, sdp: answer.sdp } };
-      await setDoc(roomRef, roomWithAnswer, { merge: true });
-
-      // Listen for remote ICE candidates
       const callerCandidatesCollection = collection(roomRef, 'callerCandidates');
       onSnapshot(callerCandidatesCollection, snapshot => {
         snapshot.docChanges().forEach(async change => {
-          if (change.type === 'added') {
-            let data = change.doc.data();
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data));
-          }
+          if (change.type === 'added') await peerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
         });
       });
     }
@@ -357,124 +313,128 @@
     function setupWebRTC() {
       if(peerConnection) peerConnection.close();
       peerConnection = new RTCPeerConnection(rtcConfig);
-      
       peerConnection.addEventListener('connectionstatechange', () => {
-        if (peerConnection.connectionState === 'connected') {
-          // Connected handled by DataChannel 'open'
-        } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
-          if(gameState === 'game') endGame('DISCONNECTED', '通信が切断されました');
+        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+          if(gameState === 'game') endGame('LINK LOST', '通信が切断されました');
         }
       });
     }
 
     function setupDataChannel(channel) {
-      channel.onopen = () => {
-        console.log("Data channel opened!");
-        showScreen('game');
-        // If guest joined via URL, remove query param
-        window.history.replaceState({}, document.title, window.location.pathname);
-      };
-      
-      channel.onclose = () => {
-        if(gameState === 'game') endGame('DISCONNECTED', '相手が退出しました');
-      };
-
-      channel.onmessage = (event) => {
-        if(gameState !== 'game') return;
-        const data = JSON.parse(event.data);
-        handleNetworkMessage(data);
-      };
+      channel.onopen = () => { showScreen('game'); window.history.replaceState({}, document.title, window.location.pathname); };
+      channel.onclose = () => { if(gameState === 'game') endGame('LINK LOST', '相手が逃亡しました'); };
+      channel.onmessage = (event) => { if(gameState === 'game') handleNetworkMessage(JSON.parse(event.data)); };
     }
 
-    // Network Messaging
     function sendNetworkMessage(msgObj) {
-      if (dataChannel && dataChannel.readyState === 'open') {
-        dataChannel.send(JSON.stringify(msgObj));
-      }
+      if (dataChannel && dataChannel.readyState === 'open') dataChannel.send(JSON.stringify(msgObj));
     }
 
     // --- UI Listeners ---
     document.getElementById('btn-create-room').addEventListener('click', createRoom);
-    document.getElementById('btn-join-room').addEventListener('click', () => {
-      joinRoom(document.getElementById('input-room-id').value.trim());
-    });
-    document.getElementById('btn-cancel-room').addEventListener('click', () => {
-      if(peerConnection) peerConnection.close();
-      showScreen('lobby');
-    });
-    document.getElementById('btn-back-lobby').addEventListener('click', () => {
-      if(peerConnection) peerConnection.close();
-      showScreen('lobby');
-    });
+    document.getElementById('btn-join-room').addEventListener('click', () => joinRoom(document.getElementById('input-room-id').value.trim()));
+    document.getElementById('btn-cancel-room').addEventListener('click', () => { if(peerConnection) peerConnection.close(); showScreen('lobby'); });
+    document.getElementById('btn-back-lobby').addEventListener('click', () => { if(peerConnection) peerConnection.close(); showScreen('lobby'); });
 
-    // QR Scanner
     document.getElementById('btn-scan-qr').addEventListener('click', () => {
       showScreen('scanner');
       html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+      html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
           html5QrCode.stop().then(() => {
             let id = decodedText;
             if(id.includes('?room=')) id = new URL(id).searchParams.get('room');
             joinRoom(id);
           });
-        },
-        (errorMessage) => { /* ignore */ }
-      ).catch(err => {
-        alert("カメラの起動に失敗しました。HTTPS環境または権限が必要です。");
-        showScreen('lobby');
-      });
+        }, () => {}
+      ).catch(() => { alert("カメラ起動失敗。"); showScreen('lobby'); });
     });
-    document.getElementById('btn-close-scanner').addEventListener('click', () => {
-      if(html5QrCode) html5QrCode.stop();
-      showScreen('lobby');
-    });
+    document.getElementById('btn-close-scanner').addEventListener('click', () => { if(html5QrCode) html5QrCode.stop(); showScreen('lobby'); });
 
 
     // ==========================================
-    // Three.js Game Engine
+    // Three.js Game Engine - DANGEROUS OVERHAUL
     // ==========================================
     
     const canvas = document.getElementById('game-canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb); // Sky blue
-    scene.fog = new THREE.Fog(0x87ceeb, 0, 100);
+    const bgColor = 0x0a0000; // 暗黒の赤
+    scene.background = new THREE.Color(bgColor);
+    scene.fog = new THREE.FogExp2(bgColor, 0.04);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
     const cameraContainer = new THREE.Object3D();
     scene.add(cameraContainer);
     cameraContainer.add(camera);
-    camera.position.set(0, 1.6, 0); // Eye level
+    camera.position.set(0, 1.6, 0);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // --- Weapon (ViewModel) ---
+    const weaponGroup = new THREE.Group();
+    // 画面右下に固定（カメラの子要素）
+    weaponGroup.position.set(0.25, -0.25, -0.4);
+    camera.add(weaponGroup);
+
+    // 銃身
+    const barrelGeo = new THREE.BoxGeometry(0.06, 0.06, 0.4);
+    const barrelMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 });
+    const barrelMesh = new THREE.Mesh(barrelGeo, barrelMat);
+    barrelMesh.position.set(0, 0, -0.1);
+    weaponGroup.add(barrelMesh);
+
+    // 手 (グローブ)
+    const handGeo = new THREE.BoxGeometry(0.1, 0.1, 0.12);
+    const handMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const handMesh = new THREE.Mesh(handGeo, handMat);
+    handMesh.position.set(0, -0.05, 0.1);
+    weaponGroup.add(handMesh);
+
+    // マズルフラッシュ用のライト
+    const muzzleLight = new THREE.PointLight(0xffaa00, 0, 8);
+    muzzleLight.position.set(0, 0, -0.35);
+    weaponGroup.add(muzzleLight);
+
+    // --- Lighting ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); // 全体を暗く
     scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(20, 50, 20);
+    const dirLight = new THREE.DirectionalLight(0xffaa55, 0.5);
+    dirLight.position.set(10, 20, 10);
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    // Map Generation (Simple Arena)
+    // デンジャラスな赤いライトを配置
+    const redLight1 = new THREE.PointLight(0xff0000, 2, 30);
+    redLight1.position.set(10, 5, 10);
+    scene.add(redLight1);
+    const redLight2 = new THREE.PointLight(0xff0000, 2, 30);
+    redLight2.position.set(-10, 5, -10);
+    scene.add(redLight2);
+
+    // --- Map Generation (Cyber Arena) ---
     const collidables = [];
     
     // Floor
     const floorGeo = new THREE.PlaneGeometry(100, 100);
-    const floorMat = new THREE.MeshLambertMaterial({ color: 0x4a5d23 }); // Grass green
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8, metalness: 0.2 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
+    // 赤いネオングリッド
+    const grid = new THREE.GridHelper(100, 50, 0x880000, 0x330000);
+    grid.position.y = 0.01;
+    scene.add(grid);
+
     // Walls & Obstacles
     const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-    const boxMat = new THREE.MeshLambertMaterial({ color: 0xaaaaaa });
-    
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.9 });
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x440000 }); // エッジを赤く
+
     function addBox(x, z, w, h, d) {
       const box = new THREE.Mesh(boxGeo, boxMat);
       box.scale.set(w, h, d);
@@ -483,68 +443,93 @@
       box.receiveShadow = true;
       scene.add(box);
       collidables.push(box);
+
+      // ワイヤーフレームエッジ追加でサイバー感
+      const edges = new THREE.EdgesGeometry(boxGeo);
+      const line = new THREE.LineSegments(edges, edgeMat);
+      line.scale.set(w, h, d);
+      line.position.set(x, h/2, z);
+      scene.add(line);
     }
 
-    // Create Arena Borders
     addBox(0, -25, 50, 5, 1);
     addBox(0, 25, 50, 5, 1);
     addBox(-25, 0, 1, 5, 50);
     addBox(25, 0, 1, 5, 50);
     
-    // Create random obstacles
-    for(let i=0; i<15; i++) {
+    for(let i=0; i<20; i++) {
       let x = (Math.random() - 0.5) * 40;
       let z = (Math.random() - 0.5) * 40;
-      // Prevent spawning near center
       if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
       addBox(x, z, Math.random()*3+1, Math.random()*4+2, Math.random()*3+1);
     }
 
-    // Enemy Avatar
-    const enemyGeo = new THREE.BoxGeometry(1, 1.8, 1);
-    const enemyMat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
-    const enemyMesh = new THREE.Mesh(enemyGeo, enemyMat);
-    enemyMesh.castShadow = true;
-    scene.add(enemyMesh);
-    enemyMesh.position.set(0, -10, 0); // Hide initially
+    // --- Enemy Avatar (Dangerous Robot) ---
+    const enemyGroup = new THREE.Group();
+    scene.add(enemyGroup);
+    enemyGroup.position.set(0, -10, 0); // 初期位置隠す
+
+    // Body
+    const eBodyGeo = new THREE.BoxGeometry(0.8, 1.2, 0.6);
+    const eBodyMat = new THREE.MeshStandardMaterial({ color: 0x550000, metalness: 0.5 });
+    const eBody = new THREE.Mesh(eBodyGeo, eBodyMat);
+    eBody.position.y = 0.6;
+    eBody.castShadow = true;
+    enemyGroup.add(eBody);
+
+    // Head
+    const eHeadGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const eHeadMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    const eHead = new THREE.Mesh(eHeadGeo, eHeadMat);
+    eHead.position.y = 1.5;
+    eHead.castShadow = true;
+    enemyGroup.add(eHead);
+
+    // Glowing Eyes
+    const eyeGeo = new THREE.BoxGeometry(0.4, 0.1, 0.1);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 自己発光風
+    const eEyes = new THREE.Mesh(eyeGeo, eyeMat);
+    eEyes.position.set(0, 1.55, -0.26);
+    enemyGroup.add(eEyes);
     
-    // Laser lines for shooting
-    const laserMat = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
+    // --- Particles System (Blood/Sparks) ---
+    const particles = [];
+    const pGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    const pMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+    function spawnHitParticles(pos) {
+      for(let i=0; i<15; i++) {
+        const p = new THREE.Mesh(pGeo, pMat);
+        p.position.copy(pos);
+        const vel = new THREE.Vector3((Math.random()-0.5)*0.6, Math.random()*0.6, (Math.random()-0.5)*0.6);
+        scene.add(p);
+        particles.push({ mesh: p, vel: vel, life: 1.0 });
+      }
+    }
 
     // --- Input Handling ---
     
-    // PC Keyboard
     const keys = { w: false, a: false, s: false, d: false };
-    document.addEventListener('keydown', e => {
-      const key = e.key.toLowerCase();
-      if(keys.hasOwnProperty(key)) keys[key] = true;
-    });
-    document.addEventListener('keyup', e => {
-      const key = e.key.toLowerCase();
-      if(keys.hasOwnProperty(key)) keys[key] = false;
-    });
+    document.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
+    document.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
 
-    // PC PointerLock & Look
     let pitch = 0, yaw = 0;
+    
+    // PC PointerLock & Look (感度を少し下げて滑らかに)
     screens.game.addEventListener('click', () => {
-      if (!isMobile && gameState === 'game') {
-        document.body.requestPointerLock();
-      }
+      if (!isMobile && gameState === 'game') document.body.requestPointerLock();
     });
 
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === document.body && gameState === 'game') {
-        yaw -= e.movementX * 0.002;
-        pitch -= e.movementY * 0.002;
+        yaw -= e.movementX * 0.0015;
+        pitch -= e.movementY * 0.0015;
         pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
       }
     });
     
-    // PC Shoot
     document.addEventListener('mousedown', (e) => {
-      if (document.pointerLockElement === document.body && gameState === 'game' && e.button === 0) {
-        shoot();
-      }
+      if (document.pointerLockElement === document.body && gameState === 'game' && e.button === 0) shoot();
     });
 
     // Mobile Input
@@ -553,42 +538,24 @@
     const joyKnob = document.getElementById('joystick-knob');
     let joyTouchId = null;
 
-    joyZone.addEventListener('touchstart', e => {
-      e.preventDefault();
-      const touch = e.changedTouches[0];
-      joyTouchId = touch.identifier;
-      updateJoystick(touch);
-    });
+    joyZone.addEventListener('touchstart', e => { e.preventDefault(); joyTouchId = e.changedTouches[0].identifier; updateJoystick(e.changedTouches[0]); });
     joyZone.addEventListener('touchmove', e => {
       e.preventDefault();
-      for(let i=0; i<e.changedTouches.length; i++) {
-        if(e.changedTouches[i].identifier === joyTouchId) updateJoystick(e.changedTouches[i]);
-      }
+      for(let i=0; i<e.changedTouches.length; i++) { if(e.changedTouches[i].identifier === joyTouchId) updateJoystick(e.changedTouches[i]); }
     });
-    function resetJoy() {
-      joyTouchId = null; joyMoveX = 0; joyMoveY = 0;
-      joyKnob.style.transform = `translate(-50%, -50%)`;
-    }
-    joyZone.addEventListener('touchend', resetJoy);
-    joyZone.addEventListener('touchcancel', resetJoy);
+    const resetJoy = () => { joyTouchId = null; joyMoveX = 0; joyMoveY = 0; joyKnob.style.transform = `translate(-50%, -50%)`; };
+    joyZone.addEventListener('touchend', resetJoy); joyZone.addEventListener('touchcancel', resetJoy);
 
     function updateJoystick(touch) {
       const rect = joyZone.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      let dx = touch.clientX - centerX;
-      let dy = touch.clientY - centerY;
+      const dx = touch.clientX - (rect.left + rect.width / 2);
+      const dy = touch.clientY - (rect.top + rect.height / 2);
       const maxDist = rect.width / 2;
       const dist = Math.min(Math.sqrt(dx*dx + dy*dy), maxDist);
       const angle = Math.atan2(dy, dx);
-      
-      const knobX = Math.cos(angle) * dist;
-      const knobY = Math.sin(angle) * dist;
-      
-      joyKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
-      
-      joyMoveX = knobX / maxDist;
-      joyMoveY = knobY / maxDist; // Forward is negative Y
+      joyKnob.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
+      joyMoveX = (Math.cos(angle)*dist) / maxDist;
+      joyMoveY = (Math.sin(angle)*dist) / maxDist;
     }
 
     // Mobile Look
@@ -597,43 +564,33 @@
     const lookZone = document.getElementById('zone-look');
 
     lookZone.addEventListener('touchstart', e => {
-      e.preventDefault();
-      if(lookTouchId !== null) return;
-      const touch = e.changedTouches[0];
-      lookTouchId = touch.identifier;
-      lastTouchX = touch.clientX;
-      lastTouchY = touch.clientY;
+      e.preventDefault(); if(lookTouchId !== null) return;
+      const t = e.changedTouches[0]; lookTouchId = t.identifier; lastTouchX = t.clientX; lastTouchY = t.clientY;
     });
     lookZone.addEventListener('touchmove', e => {
       e.preventDefault();
       for(let i=0; i<e.changedTouches.length; i++) {
         if(e.changedTouches[i].identifier === lookTouchId) {
-          const touch = e.changedTouches[i];
-          const mx = touch.clientX - lastTouchX;
-          const my = touch.clientY - lastTouchY;
-          yaw -= mx * 0.005;
-          pitch -= my * 0.005;
+          const t = e.changedTouches[i];
+          // スワイプ感度を調整しマイルドに
+          yaw -= (t.clientX - lastTouchX) * 0.0035;
+          pitch -= (t.clientY - lastTouchY) * 0.0035;
           pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
-          lastTouchX = touch.clientX;
-          lastTouchY = touch.clientY;
+          lastTouchX = t.clientX; lastTouchY = t.clientY;
         }
       }
     });
-    function resetLook() { lookTouchId = null; }
-    lookZone.addEventListener('touchend', resetLook);
-    lookZone.addEventListener('touchcancel', resetLook);
+    const resetLook = () => { lookTouchId = null; };
+    lookZone.addEventListener('touchend', resetLook); lookZone.addEventListener('touchcancel', resetLook);
 
-    // Mobile Shoot
-    document.getElementById('btn-shoot').addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      if(gameState === 'game') shoot();
-    });
+    document.getElementById('btn-shoot').addEventListener('touchstart', (e) => { e.preventDefault(); if(gameState === 'game') shoot(); });
 
     // --- Game Logic ---
     
     const raycaster = new THREE.Raycaster();
-    const speed = 0.15;
-    const playerRadius = 0.5;
+    const speed = 0.22; // 少し速く
+    const playerRadius = 0.4;
+    let playerVelocity = new THREE.Vector3(); // 慣性移動用
 
     let targetEnemyPos = new THREE.Vector3(0,-10,0);
     let targetEnemyYaw = 0;
@@ -641,60 +598,67 @@
     function resetGameStats() {
       myHP = 100; enemyHP = 100;
       updateHPUI();
-      // Spawn positions based on role
-      if (isHost) {
-        cameraContainer.position.set(0, 0, 20);
-        yaw = Math.PI;
-      } else {
-        cameraContainer.position.set(0, 0, -20);
-        yaw = 0;
-      }
+      if (isHost) { cameraContainer.position.set(0, 0, 20); yaw = Math.PI; } 
+      else { cameraContainer.position.set(0, 0, -20); yaw = 0; }
       pitch = 0;
+      playerVelocity.set(0,0,0);
     }
 
     function shoot() {
       if(myHP <= 0) return;
       
-      // Calculate shooting direction
       cameraContainer.rotation.set(0, yaw, 0);
       camera.rotation.set(pitch, 0, 0);
       
       const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
       const origin = camera.getWorldPosition(new THREE.Vector3());
       
-      // Draw Local Laser
-      drawLaser(origin, dir);
+      // Weapon Recoil & Flash
+      weaponGroup.position.z += 0.2; // 後ろにキックバック
+      weaponGroup.rotation.x -= 0.1; // 上に跳ねる
+      muzzleLight.intensity = 5;
 
-      // Check Hit against Enemy
-      // Create a raycaster specifically for the enemy mesh
+      // Draw Laser
+      drawThickLaser(origin, dir);
+
+      // Hit Detection
       raycaster.set(origin, dir);
-      const intersects = raycaster.intersectObject(enemyMesh);
+      const intersects = raycaster.intersectObjects(enemyGroup.children);
       
-      let hit = false;
       if (intersects.length > 0 && enemyHP > 0) {
-        // Simple line of sight check (ensure wall is not blocking)
         const wallIntersects = raycaster.intersectObjects(collidables);
         if (wallIntersects.length === 0 || wallIntersects[0].distance > intersects[0].distance) {
-          hit = true;
-          // Send hit event
-          sendNetworkMessage({ t: 'h', d: 20 }); // 20 damage
+          const hitPos = intersects[0].point;
+          spawnHitParticles(hitPos); // 自分視点での血しぶき
+          sendNetworkMessage({ t: 'h', d: 25, px: hitPos.x, py: hitPos.y, pz: hitPos.z }); // 25 damage
         }
       }
 
-      // Send Shoot event for remote visuals
-      sendNetworkMessage({ 
-        t: 's', 
-        p: {x: origin.x, y: origin.y, z: origin.z},
-        d: {x: dir.x, y: dir.y, z: dir.z}
-      });
+      sendNetworkMessage({ t: 's', p: {x: origin.x, y: origin.y, z: origin.z}, d: {x: dir.x, y: dir.y, z: dir.z} });
     }
 
-    function drawLaser(origin, dir) {
-      const end = origin.clone().add(dir.clone().multiplyScalar(50));
-      const geo = new THREE.BufferGeometry().setFromPoints([origin, end]);
-      const line = new THREE.Line(geo, laserMat);
-      scene.add(line);
-      setTimeout(() => scene.remove(line), 100);
+    // 太いレーザー（Cylinder）で派手に
+    function drawThickLaser(origin, dir) {
+      const length = 60;
+      const geo = new THREE.CylinderGeometry(0.05, 0.05, length, 8);
+      geo.translate(0, length/2, 0);
+      geo.rotateX(Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(origin);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), dir.clone().normalize());
+      scene.add(mesh);
+      
+      const interval = setInterval(() => {
+        mat.opacity -= 0.15;
+        if(mat.opacity <= 0) { clearInterval(interval); scene.remove(mesh); }
+      }, 16);
+    }
+
+    function showDamageEffect() {
+      const overlay = document.getElementById('damage-overlay');
+      overlay.style.opacity = '1';
+      setTimeout(() => { overlay.style.opacity = '0'; }, 150);
     }
 
     function updateHPUI() {
@@ -707,71 +671,57 @@
       if (document.pointerLockElement === document.body) document.exitPointerLock();
       
       const title = document.getElementById('result-title');
-      if (status === 'WIN') { title.innerText = 'YOU WIN!'; title.className = 'text-5xl font-black mb-4 uppercase text-yellow-400'; }
-      else if (status === 'LOSE') { title.innerText = 'YOU LOSE'; title.className = 'text-5xl font-black mb-4 uppercase text-red-500'; }
+      if (status === 'WIN') { title.innerText = 'TARGET ELIMINATED'; title.className = 'text-5xl font-black mb-4 uppercase text-cyan-400 drop-shadow-[0_0_10px_cyan]'; }
+      else if (status === 'LOSE') { title.innerText = 'YOU DIED'; title.className = 'text-6xl font-black mb-4 uppercase text-red-600 drop-shadow-[0_0_20px_red] glitch-text'; }
       else { title.innerText = status; title.className = 'text-3xl font-bold mb-4 text-gray-400'; }
       
       document.getElementById('result-desc').innerText = message;
       showScreen('result');
-      
-      if(peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-      }
+      if(peerConnection) { peerConnection.close(); peerConnection = null; }
     }
 
     function handleNetworkMessage(data) {
       switch(data.t) {
-        case 'p': // Position update
-          targetEnemyPos.set(data.x, 0.9, data.z); // y is fixed center of box
+        case 'p':
+          targetEnemyPos.set(data.x, 0, data.z);
           targetEnemyYaw = data.ry;
           break;
-        case 's': // Enemy shot
-          drawLaser(new THREE.Vector3(data.p.x, data.p.y, data.p.z), new THREE.Vector3(data.d.x, data.d.y, data.d.z));
+        case 's':
+          drawThickLaser(new THREE.Vector3(data.p.x, data.p.y, data.p.z), new THREE.Vector3(data.d.x, data.d.y, data.d.z));
           break;
-        case 'h': // I was hit
+        case 'h':
           myHP -= data.d;
           updateHPUI();
-          // Visual feedback (flash red)
-          screens.game.style.backgroundColor = 'rgba(255,0,0,0.3)';
-          setTimeout(() => screens.game.style.backgroundColor = 'transparent', 100);
+          showDamageEffect();
+          if(data.px !== undefined) spawnHitParticles(new THREE.Vector3(data.px, data.py, data.pz));
           if (myHP <= 0) {
             sendNetworkMessage({ t: 'dead' });
-            endGame('LOSE', '相手に撃ち負けました...');
+            endGame('LOSE', '生命反応ロスト...');
           }
           break;
-        case 'dead': // Enemy died
+        case 'dead':
           enemyHP = 0;
           updateHPUI();
-          endGame('WIN', '相手を倒しました！');
+          endGame('WIN', 'ミッションコンプリート');
           break;
       }
     }
 
-    // Collision Detection Logic
     function moveWithCollision(velocity) {
       const pos = cameraContainer.position;
       const nextPos = pos.clone().add(velocity);
-      
-      // Simple AABB vs AABB collision against collidables array
-      let collisionX = false;
-      let collisionZ = false;
-
+      let collisionX = false, collisionZ = false;
       const myBox = new THREE.Box3().setFromCenterAndSize(nextPos, new THREE.Vector3(playerRadius*2, 2, playerRadius*2));
 
       for (let obj of collidables) {
         const objBox = new THREE.Box3().setFromObject(obj);
         if (myBox.intersectsBox(objBox)) {
-          // Try moving only X
           const boxX = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(nextPos.x, pos.y, pos.z), new THREE.Vector3(playerRadius*2, 2, playerRadius*2));
           if (boxX.intersectsBox(objBox)) collisionX = true;
-          
-          // Try moving only Z
           const boxZ = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(pos.x, pos.y, nextPos.z), new THREE.Vector3(playerRadius*2, 2, playerRadius*2));
           if (boxZ.intersectsBox(objBox)) collisionZ = true;
         }
       }
-
       if (!collisionX) pos.x = nextPos.x;
       if (!collisionZ) pos.z = nextPos.z;
     }
@@ -784,48 +734,55 @@
       requestAnimationFrame(animate);
 
       if (gameState === 'game') {
-        // Player Movement
+        // Input to target velocity
         let moveX = 0, moveZ = 0;
-        
-        if (isMobile) {
-          moveX = joyMoveX;
-          moveZ = joyMoveY;
-        } else {
-          if (keys.w) moveZ -= 1;
-          if (keys.s) moveZ += 1;
-          if (keys.a) moveX -= 1;
-          if (keys.d) moveX += 1;
-          
-          // Normalize keyboard diagonal movement
-          if (moveX !== 0 && moveZ !== 0) {
-            const length = Math.sqrt(moveX*moveX + moveZ*moveZ);
-            moveX /= length;
-            moveZ /= length;
-          }
+        if (isMobile) { moveX = joyMoveX; moveZ = joyMoveY; } 
+        else {
+          if (keys.w) moveZ -= 1; if (keys.s) moveZ += 1;
+          if (keys.a) moveX -= 1; if (keys.d) moveX += 1;
+          if (moveX !== 0 && moveZ !== 0) { const l = Math.sqrt(moveX*moveX + moveZ*moveZ); moveX /= l; moveZ /= l; }
         }
 
-        if (moveX !== 0 || moveZ !== 0) {
-          const dir = new THREE.Vector3(moveX, 0, moveZ);
-          dir.applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-          moveWithCollision(dir.multiplyScalar(speed));
-        }
+        const targetVel = new THREE.Vector3(moveX, 0, moveZ);
+        if(targetVel.lengthSq() > 0) targetVel.applyAxisAngle(new THREE.Vector3(0,1,0), yaw).multiplyScalar(speed);
+        
+        // 慣性 Lerp
+        playerVelocity.lerp(targetVel, 0.15);
+        if (playerVelocity.lengthSq() > 0.0001) moveWithCollision(playerVelocity);
 
         // Apply Camera Rotation
         cameraContainer.rotation.set(0, yaw, 0);
         camera.rotation.set(pitch, 0, 0);
 
-        // Smooth Enemy Interpolation
-        enemyMesh.position.lerp(targetEnemyPos, 0.2);
-        enemyMesh.rotation.y = targetEnemyYaw; // Needs smoothing ideally, but direct set is ok for now
+        // Weapon Animations (Recoil recovery & Bobbing)
+        weaponGroup.position.z = THREE.MathUtils.lerp(weaponGroup.position.z, -0.4, 0.1);
+        weaponGroup.rotation.x = THREE.MathUtils.lerp(weaponGroup.rotation.x, 0, 0.1);
+        muzzleLight.intensity = Math.max(0, muzzleLight.intensity - 0.8);
+        
+        if (playerVelocity.lengthSq() > 0.001) {
+          const bob = Math.sin(time * 0.015) * 0.015;
+          weaponGroup.position.y = -0.25 + bob;
+        }
 
-        // Network Sync (Send 15 times per second)
+        // Enemy Interpolation & Rotation
+        enemyGroup.position.lerp(targetEnemyPos, 0.2);
+        // 短い回転経路での補間
+        const currentQ = enemyGroup.quaternion.clone();
+        const targetQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), targetEnemyYaw);
+        enemyGroup.quaternion.slerp(targetQ, 0.2);
+
+        // Particles Update
+        for (let i = particles.length - 1; i >= 0; i--) {
+          let p = particles[i];
+          p.mesh.position.add(p.vel);
+          p.vel.y -= 0.03; // gravity
+          p.life -= 0.05;
+          if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+        }
+
+        // Network Sync (~15 fps)
         if (time - lastNetworkSend > 66 && myHP > 0) {
-          sendNetworkMessage({
-            t: 'p',
-            x: cameraContainer.position.x,
-            z: cameraContainer.position.z,
-            ry: yaw
-          });
+          sendNetworkMessage({ t: 'p', x: cameraContainer.position.x, z: cameraContainer.position.z, ry: yaw });
           lastNetworkSend = time;
         }
       }
@@ -833,14 +790,12 @@
       renderer.render(scene, camera);
     }
 
-    // Handle Resize
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Start Loop
     animate(0);
 
   </script>
